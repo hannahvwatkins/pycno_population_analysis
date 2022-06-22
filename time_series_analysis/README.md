@@ -1,6 +1,6 @@
 ## *Pycnopodia helianthoides* time series analysis
 
-This folder contains the codeand figures for the population trend analysis for *Pycnopodia helianthoides* in Canada for our upcoming COSEWIC report. Data that we are able to share are included in the root folder of this repo, but it is incomplete as several sources require permission for use - please contact me if you would like to be put in contact with the data providers. Note that model output files (i.e. the `.rds` files) are too large to upload even with Github's large file storage, but I am happy to email them upon request!
+This folder contains the code and figures for the population trend analysis for *Pycnopodia helianthoides* in Canada for our upcoming COSEWIC report. Data that we are able to share are included in the root folder of this repo, but it is incomplete as several sources require permission for use - please contact me if you would like to be put in contact with the data providers. Note that model output files (i.e. the `.rds` files) are too large to upload even with Github's large file storage, but I am happy to email them upon request!
 
 *Code*
 
