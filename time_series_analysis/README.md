@@ -12,7 +12,8 @@ The figures folder contains all of the figures pertaining to each analysis. For 
 
 
 Session Info
-`R version 4.1.0 (2021-05-18)
+```
+R version 4.1.0 (2021-05-18)
 Platform: x86_64-w64-mingw32/x64 (64-bit)
 Running under: Windows 10 x64 (build 19044)
 
@@ -58,4 +59,5 @@ loaded via a namespace (and not attached):
 [64] lubridate_1.7.10     knitr_1.33           utf8_1.2.1          
 [67] stringi_1.6.1        parallel_4.1.0       Rcpp_1.0.7          
 [70] vctrs_0.4.1          dbplyr_2.1.1         tidyselect_1.1.1    
-[73] xfun_0.24           `
+[73] xfun_0.24           
+```
