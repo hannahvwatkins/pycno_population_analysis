@@ -24,12 +24,14 @@ parameters {
   real beta_time; //effort coefficient for time
   real beta_area; //effort coefficient for area
   real a_area; //scalar for area vs time
+  real u_pre; //trend pre-wasting
+  real u_wasting; //trend during the crash
+  real u_post; //trend post-wasting
  
   //variance on the deviance components
   real<lower = 0> sd_site1; //sites
   real<lower = 0> sd_r1; //observation error
   real<lower = 0> sd_q; //process error - normal years
-  real<lower = 0> sd_wasting; //process error - catastrophic
   
   vector[TT] pro_dev; //process deviations
   vector[N_yr] obs_dev1; //observation deviations 
@@ -55,12 +57,16 @@ transformed parameters{
   
   //the first year follows the same equation, but based on some unknown previous
   //year, x0, which we need to estimate
-  x[1] = x0 + pro_dev[1]*sd_q; 
+  x[1] = x0 + u_pre + pro_dev[1]*sd_q;
   for(t in 2:TT){
     if(wasting_index[t] == 0)
-      x[t] = x[t-1] + pro_dev[t]*sd_q;
+      x[t] = x[t-1] + u_pre + pro_dev[t]*sd_q;
     else
-      x[t] = x[t-1] + pro_dev[t]*sd_wasting;
+      if(wasting_index[t] == 1)
+        x[t] = x[t-1] + u_wasting + pro_dev[t]*sd_q;
+    else
+      if(wasting_index[t] == 2)
+        x[t] = x[t-1] + u_post + pro_dev[t]*sd_q;
   }
   
   //the next equation links the year by year estimates to the 
@@ -68,7 +74,7 @@ transformed parameters{
   //estimate the corresponding observation vs process error for each year. 
   //To see the links between this equation and the one above 
   //(i.e., how the model can partition fluctuations between both observation 
-  //error and process changes, even if there were only one dataset), see Dennis 
+  //error and process changes, even if there is only one dataset), see Dennis 
   //et al., 2006 https://doi.org/10.1890/0012-9615(2006)76[323:EDDPNA]2.0.CO;2
    
   //for each year, the observed estimate is just the true state plus some 
@@ -83,14 +89,16 @@ transformed parameters{
 model{
   //priors
   x0 ~ normal(0,5); 
-  beta_time ~ normal(0,2); 
-  beta_area ~ normal(0,2); 
-  a_area ~ normal(0,2);
+  beta_time ~ normal(0,5); 
+  beta_area ~ normal(0,5); 
+  a_area ~ normal(0,5);
+  u_pre ~ normal(0,5);
+  u_wasting ~ normal(0,5);
+  u_post ~ normal(0,5);
   //variance terms - gamma priors seem to constrain the parameters to realistic
   //values well and the model does not appear to be sensitive to the choice of
   //alpha and beta
   sd_q ~ gamma(2,4);   
-  sd_wasting ~ gamma(2,4);
   sd_r1 ~ gamma(2,4);  
   sd_site1 ~ gamma(2,3);
   sd_source ~ gamma(2,3);
@@ -105,7 +113,7 @@ model{
 //being estimated from the full dataset, it's just the time/area predictors and
 //the scalar between the two that are split
   for(i in 1:N1){
-    if(effort_type[i] == 0){
+    if(effort_type[i] == 1){
       presence1[i] ~ bernoulli_logit(a_yr1[year_id1[i]]+a_site1[site1[i]]*sd_site1+a_source[source1[i]]*sd_source+time[i]*beta_time);
     }
     else{
@@ -120,7 +128,7 @@ generated quantities{
   vector[N1] log_lik; //generate log likelihoods
   
   for(i in 1:N1){
-    if(effort_type[i] == 0){
+    if(effort_type[i] == 1){
         y_predict[i] = bernoulli_logit_rng(a_yr1[year_id1[i]]+a_site1[site1[i]]*sd_site1+a_source[source1[i]]*sd_source+time[i]*beta_time);
         log_lik[i] = bernoulli_logit_lpmf(presence1[i] | a_yr1[year_id1[i]]+a_site1[site1[i]]*sd_site1+a_source[source1[i]]*sd_source+time[i]*beta_time);
     }
