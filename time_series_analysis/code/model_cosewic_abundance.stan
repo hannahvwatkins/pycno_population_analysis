@@ -93,6 +93,9 @@ parameters {
   real a_iucn;
   real a_aba;
   real a_multi; 
+  real u_pre; //trend pre-wasting
+  real u_wasting; //trend during the crash
+  real u_post; //trend post-wasting
 
   real<lower=0> phi_iucn; //dispersion parameters for negative binomials
   real<lower=0> phi_aba;
@@ -126,7 +129,6 @@ parameters {
   real<lower = 0> sd_r_aba; 
   real<lower = 0> sd_r_multi;
   real<lower = 0> sd_q; //variance on process deviance for underlying state
-  real<lower = 0> sd_wasting; //variance on process in catastrophic years
   
   vector[TT] pro_dev; //process deviations
   vector[N_yr] obs_dev_reef; //observation deviations 
@@ -134,7 +136,6 @@ parameters {
   vector[N_yr_iucn] obs_dev_iucn;
   vector[N_yr_aba] obs_dev_aba; 
   vector[N_yr_multi] obs_dev_multi;
-
 }
 
 transformed parameters{
@@ -162,20 +163,31 @@ transformed parameters{
   //efficient
   //the first year follows the same equation, but based on some unknown previous
   //year, x0, which we need to estimate
-  x[1] = x0 + pro_dev[1]*sd_q;
+  x[1] = x0 + u_pre + pro_dev[1]*sd_q;
   
-  //we've also defined years as "normal" (i.e., wasting_index == 0) or 
-  //"catastrophic" (i.e., wasting_index == 1) based on whether a given year was
-  //during the main part of the SSWD outbreak in Canada (i.e., 2014-2015), and
-  //allowed the SD for those to categories of years to vary. This allows process
-  //error to be more extreme in the crash years (sd_wasting) without influencing 
-  //the estimated process error in normal years (sd_q), meaning we're less 
-  //likely to underestimate observation errors - see Appendix in report for more
+  //we've also defined years as "pre-crash" (i.e., wasting_index == 0),
+  //"mid-crash" (i.e., wasting_index == 1) or "post-crash" (i.e., wasting_index 
+  //== 2) based on whether a given year was during the main part of the SSWD 
+  //outbreak in Canada (i.e., 2014-2015), and allowed the intrinsic growth rate
+  //(i.e. u) vary for each time period. This allows us to identify whether there
+  //were any signs of population decline prior to the crash or any signs of 
+  //recovery after, while also avoiding inflating process error. If we don't
+  //include separate terms, the model will force a single rate of decline across
+  //all years, completely obscuring our ability to estimate the regular
+  //fluctuations in the population because of actual demographic changes vs. 
+  //how much of the variability comes from observation error. It also ensures 
+  //that we don't let the true catastrophic changes in the population state that
+  //occurred in 2014/15 inflate our estimate of the usual demographic changes
+  //see Appendix in report for more
   for(t in 2:TT){
     if(wasting_index[t] == 0)
-      x[t] = x[t-1] + pro_dev[t]*sd_q;
+      x[t] = x[t-1] + u_pre + pro_dev[t]*sd_q;
     else
-      x[t] = x[t-1] + pro_dev[t]*sd_wasting;
+      if(wasting_index[t] == 1)
+        x[t] = x[t-1] + u_wasting + pro_dev[t]*sd_q;
+    else
+      if(wasting_index[t] == 2)
+        x[t] = x[t-1] + u_post + pro_dev[t]*sd_q;
   }
 
   //the next five equations link the separate year by year estimates to the same
@@ -221,14 +233,15 @@ model{
   //have tried a range of options with the same result. Can check the shape of 
   //these priors in R with bayesAB::plotGamma
   sd_q ~ gamma(2,4);    
-  sd_wasting ~ gamma(2,2); //wider prior since we want to give the model a lot 
-                          //of flexibility to vary in the year wasting hit
   sd_r_reef ~ gamma(2,4);  
   sd_r_ow ~ gamma(2,4);    
   sd_r_iucn ~ gamma(2,4);
   sd_r_aba ~ gamma(2,4);  
   sd_r_multi ~ gamma(2,4);
   x0 ~ normal(0,5); //initial state
+  u_pre ~ normal(0,5);
+  u_wasting ~ normal(0,5);
+  u_post ~ normal(0,5);
   a_ow ~ normal(0,5); //scalars
   a_iucn ~ normal(0,5);
   a_aba ~ normal(0,5);
@@ -282,7 +295,8 @@ model{
   //since there is no intercept in either model and all continuous variables are
   //centered around 0 (as well as the random effects of site and diver), the 
   //a_yr term tells us the expected abundance for each year at the mean value
-  //of all the other variables
+  //of all the other variables - it basically creates a separate intercept for 
+  //each year!
   y_reef ~ ordered_logistic(a_yr_reef[year_id_reef]+a_site_reef[site_reef]*sd_site_reef+X_reef*beta_reef,c_reef);
   y_ow ~ ordered_logistic(a_yr_ow[year_id_ow]+a_site_ow[site_ow]*sd_site_ow+a_dv_ow[diver_ow]*sd_dv_ow+X_ow*beta_ow,c_ow);
   y_iucn ~ neg_binomial_2_log(a_yr_iucn[year_id_iucn]+a_site_iucn[site_iucn]*sd_site_iucn+a_source_iucn[source_iucn]*sd_source_iucn+X_iucn*beta_iucn, phi_iucn);
@@ -312,7 +326,8 @@ model{
   vector[N_multi] y_predict_multi; 
   vector[N_reef+N_ow+N_iucn+N_aba+N_multi] log_lik; //generate log likelihoods 
 
-  //make separate y_predicts for each dataset
+  //make separate y_predicts for each dataset to make them easy to compare to 
+  //the raw data
   for (i in 1:N_reef) y_predict_reef[i] = ordered_logistic_rng(a_yr_reef[year_id_reef[i]]+a_site_reef[site_reef[i]]*sd_site_reef+X_reef[i,]*beta_reef,c_reef); 
   for (z in 1:N_ow) y_predict_ow[z] = ordered_logistic_rng(a_yr_ow[year_id_ow[z]]+a_site_ow[site_ow[z]]*sd_site_ow+a_dv_ow[diver_ow[z]]*sd_dv_ow+X_ow[z,]*beta_ow,c_ow); 
   for (j in 1:N_iucn) y_predict_iucn[j] = neg_binomial_2_log_rng(a_yr_iucn[year_id_iucn[j]]+a_site_iucn[site_iucn[j]]*sd_site_iucn+a_source_iucn[source_iucn[j]]*sd_source_iucn+X_iucn[j,]*beta_iucn, phi_iucn);
@@ -323,7 +338,8 @@ model{
     else
     y_predict_multi[m] = neg_binomial_2_log_rng(a_yr_multi[year_id_multi[m]]+a_site_multi[site_multi[m]]*sd_site_multi+X_multi[m,]*beta_multi, phi_multi);
   }
-  //and a single log likelihood for the whole model
+  //and a single log likelihood for the whole model for calculating looic later
+  //if necessary
   for (i in 1:N_reef) log_lik[i] = ordered_logistic_lpmf(y_reef[i]|a_yr_reef[year_id_reef[i]]+a_site_reef[site_reef[i]]*sd_site_reef+X_reef[i,]*beta_reef, c_reef);
   for (z in 1:N_ow) log_lik[N_reef+z] = ordered_logistic_lpmf(y_ow[z]|a_yr_ow[year_id_ow[z]]+a_site_ow[site_ow[z]]*sd_site_ow+a_dv_ow[diver_ow[z]]*sd_dv_ow+X_ow[z,]*beta_ow, c_ow);
   for (j in 1:N_iucn) log_lik[N_reef+N_ow+j] = neg_binomial_2_log_lpmf(y_iucn[j]|a_yr_iucn[year_id_iucn[j]]+a_site_iucn[site_iucn[j]]*sd_site_iucn+a_source_iucn[source_iucn[j]]*sd_source_iucn+X_iucn[j,]*beta_iucn, phi_iucn);
