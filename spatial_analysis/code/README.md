@@ -63,6 +63,7 @@ the Canadian EEZ. CRS: EPSG:3005.
 
 **bc_eez_100m1.tif**
 
+File too large to upload to Github, can source from below or contact author for a copy.
 .tif raster file containing bathymetry from ETOPO1 clipped to Canada’s marine 
 EEZ on the Pacific coast. 100 m spatial resolution. 
 Sourced from the BC Marine Conservation Analysis (BCMA) website. CRS: EPSG: 3005				(https://bcmca.ca/data/eco_physical_bathymetry/)
